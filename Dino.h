@@ -3,15 +3,14 @@ struct Dino
     Vector2f position;
     float width;
     float height;
-    bool isOnGround;
+    bool isOnGround = false;
     Box collider;
     Box ground_trigger;
 
-    float ground_trigger_width = 20.0f;
     float ground_trigger_height = 10.0f;
 
     Vector2f linear_velocity;
-    float jumpForce;
+    float jump_force = 500.0f;
 
     RectangleShape rectangle_shape;
     Color color = Color::Black;
@@ -22,8 +21,10 @@ struct Dino
         this->width = width;
         this->height = height;
         collider.Create(position.x, position.y, width, height);
-        ground_trigger.Create((collider.right * 0.5f) - (ground_trigger_width * 0.5f), collider.bottom, ground_trigger_width, ground_trigger_height);
+        ground_trigger.Create(position.x, collider.bottom, width, ground_trigger_height);
         
+        linear_velocity = Vector2f(0.0f, 0.0f);
+
         rectangle_shape = RectangleShape({1, 1});
         rectangle_shape.setFillColor(color);
 
@@ -38,21 +39,16 @@ struct Dino
 
         collider.Create(position.x, position.y, width, height);
 
-        if(IntersectBox(collider, ground_collider))
+        if(collider.bottom > ground_collider.top)
         {
             position = Vector2f(position.x, ground_collider.top - height);
             collider.Create(position.x, position.y, width, height);
+            linear_velocity.y = 0.0f;
         }
 
-        ground_trigger.Create((collider.right * 0.5f) - (ground_trigger_width * 0.5f), collider.bottom, ground_trigger_width, ground_trigger_height);
+        ground_trigger.Create(position.x, collider.bottom, width, ground_trigger_height);
 
         isOnGround = IntersectBox(ground_trigger, ground_collider);
-
-        if(isOnGround)
-        {
-            std::cout << "On Ground!\n";
-        }
-
     }
 
     void Draw()
@@ -65,7 +61,7 @@ struct Dino
     {
         if(isOnGround)
         {
-            linear_velocity.y = -jumpForce;
+            linear_velocity.y = -jump_force;
         }
     }
 };

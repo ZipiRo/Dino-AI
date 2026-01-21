@@ -8,12 +8,14 @@ struct Cactus
     RectangleShape rectangle_shape;
     Color color = Color::Green;
 
+    float collider_y_offset = 30.0f;
+
     void Init(float x, float width, float height)
     {
         position = Vector2f(x, window_height - ground_thickness - height);
         this->width = width;
         this->height = height;
-        collider.Create(x, position.y, width, height);
+        collider.Create(x, position.y + collider_y_offset, width, height - collider_y_offset);
         
         rectangle_shape = RectangleShape({1, 1});
         rectangle_shape.setFillColor(color);
@@ -24,7 +26,7 @@ struct Cactus
 
     void Update()
     {
-        collider.Create(position.x, position.y, width, height);
+        collider.Create(position.x, position.y + collider_y_offset, width, height - collider_y_offset);
     }
 
     void Draw()
