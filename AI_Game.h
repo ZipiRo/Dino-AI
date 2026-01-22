@@ -49,7 +49,7 @@ Box ground_collider;
 bool jump_pressed = false;
 
 const float MAX_GAME_SPEED = 10.0f;
-const float BASE_GAME_SPEED = 1.5f;
+const float BASE_GAME_SPEED = 6.0f;
 const float INCREMENT_GAME_SPEED = 0.2f;
 const int GAME_SPEED_INCREASE_AT = 50;
 
@@ -187,7 +187,9 @@ void ResetGame()
     spawn_cactus_timer = 0.0f;
     distance_from_last_spawn = 0.0f;
     next_spawn_distance = 0.0f;
-    game_speed = 1.0f;
+    game_speed = BASE_GAME_SPEED;
+    game_speed_text.setString("GAME SPEED: " + std::to_string(game_speed));
+    last_speed_increase = 0;
 }
 
 void SaveElites()
@@ -247,12 +249,12 @@ void Start()
     distance_text.setPosition({10.0f, 0.0f});
 
     generation_info_text.setFillColor(Color::White);
-    generation_info_text.setPosition({10.0f, window_height - 50.0f});
+    generation_info_text.setPosition({10.0f, window_height - 70.0f});
     generation_info_text.setString("GENERATION: 0 | ALIVE: " + std::to_string(agent_count));
     generation_info_text.setCharacterSize(20);
 
     game_speed_text.setFillColor(Color::White);
-    game_speed_text.setPosition({10.0f, window_height - 25.0f});
+    game_speed_text.setPosition({10.0f, window_height - 45.0f});
     game_speed_text.setString("GAME SPEED: " + std::to_string(game_speed));
     game_speed_text.setCharacterSize(20);
 
