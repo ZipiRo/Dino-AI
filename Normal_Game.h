@@ -88,7 +88,7 @@ void VegetationUpdate()
     }
 }
 
-float distance_timer;
+float distance;
 int distance = 0;
 
 void Start()
@@ -117,8 +117,8 @@ void Start()
 
 void Update()
 {
-    distance_timer += deltaTime;
-    if(distance_timer >= 1.0f * (1.0f / game_speed)){
+    distance += deltaTime;
+    if(distance >= 1.0f * (1.0f / game_speed)){
         distance++;
 
         if((distance + 1) % 100 == 0)
@@ -127,7 +127,7 @@ void Update()
             std::cout << game_speed << '\n';
         }
 
-        distance_timer = 0;
+        distance = 0;
     }
 
     distance_text.setString(std::to_string(distance));
