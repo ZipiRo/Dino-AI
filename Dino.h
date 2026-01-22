@@ -34,7 +34,7 @@ struct Dino
 
     void Update()
     {
-        linear_velocity += gravity_acc * deltaTime;
+        linear_velocity += Vector2f(0, GRAVITY) * deltaTime;
         position += linear_velocity * deltaTime;
 
         collider.Create(position.x, position.y, width, height);

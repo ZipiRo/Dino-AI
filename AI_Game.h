@@ -1,8 +1,6 @@
 #include <algorithm>
 #include <fstream>
 
-Vector2f gravity_acc{0, 981.0f};
-
 struct Box
 {
     float left;
@@ -48,8 +46,9 @@ Box ground_collider;
 
 bool jump_pressed = false;
 
+const float GRAVITY = 900.0f;
 const float MAX_GAME_SPEED = 10.0f;
-const float BASE_GAME_SPEED = 6.0f;
+const float BASE_GAME_SPEED = 2.0f;
 const float INCREMENT_GAME_SPEED = 0.2f;
 const int GAME_SPEED_INCREASE_AT = 50;
 
