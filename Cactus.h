@@ -1,5 +1,5 @@
 struct Cactus
-{
+{ 
     Vector2f position;
     float width;
     float height;
@@ -8,7 +8,9 @@ struct Cactus
     RectangleShape rectangle_shape;
     Color color = Color::Green;
 
-    float collider_y_offset = 30.0f;
+    float collider_y_offset = 10.0f;
+
+    std::vector<bool> reward_hit;
 
     void Init(float x, float width, float height)
     {
@@ -16,7 +18,7 @@ struct Cactus
         this->width = width;
         this->height = height;
         collider.Create(x, position.y + collider_y_offset, width, height - collider_y_offset);
-        
+
         rectangle_shape = RectangleShape({1, 1});
         rectangle_shape.setFillColor(color);
 

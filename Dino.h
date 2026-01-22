@@ -10,10 +10,13 @@ struct Dino
     float ground_trigger_height = 10.0f;
 
     Vector2f linear_velocity;
-    float jump_force = 500.0f;
+    float jump_force = 650.0f;
 
     RectangleShape rectangle_shape;
     Color color = Color::Black;
+
+    bool isJumping = false;
+    bool jumpHeld = false;
 
     void Init(float x, float width, float height)
     {
@@ -34,8 +37,17 @@ struct Dino
 
     void Update()
     {
-        linear_velocity += Vector2f(0, GRAVITY) * deltaTime;
+        float gravity = GRAVITY;
+
+        if(linear_velocity.y < 0.0f)
+        {
+            if(isJumping && !jumpHeld)
+                gravity += 1000;
+        }
+
+        linear_velocity += Vector2f(0, gravity) * deltaTime;
         position += linear_velocity * deltaTime;
+        rectangle_shape.setPosition(position);
 
         collider.Create(position.x, position.y, width, height);
 
@@ -49,19 +61,29 @@ struct Dino
         ground_trigger.Create(position.x, collider.bottom, width, ground_trigger_height);
 
         isOnGround = IntersectBox(ground_trigger, ground_collider);
+        
+        if(isOnGround)
+        {
+            isJumping = false;
+        } 
     }
 
     void Draw()
     {
-        rectangle_shape.setPosition(position);
         window.draw(rectangle_shape);
     }
 
     void Jump()
     {
-        if(isOnGround)
-        {
-            linear_velocity.y = -jump_force;
-        }
+        if(!isOnGround) return;
+
+        isJumping = true;
+        jumpHeld = true;
+        linear_velocity.y = -jump_force;
+    }
+
+    void ReleaseJump()
+    {
+        jumpHeld = false;
     }
 };

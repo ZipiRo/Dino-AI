@@ -31,6 +31,18 @@ float Distance(const Vector2f &a, const Vector2f &b)
     return sqrt(dx * dx + dy * dy);
 }
 
+int RandomIntRange(int min, int max)
+{
+    return min + rand() % (max - min + 1);
+}
+
+float RandomFloatRange(float min, float max)
+{   
+    return min + (float)rand() / RAND_MAX * (max - min);
+}
+
+const float GRAVITY = 900.0f;
+
 Text distance_text{font_JetBrains};
 Text generation_info_text{font_JetBrains};
 Text agent_id_text{font_JetBrains};
@@ -46,7 +58,6 @@ Box ground_collider;
 
 bool jump_pressed = false;
 
-const float GRAVITY = 900.0f;
 const float MAX_GAME_SPEED = 10.0f;
 const float BASE_GAME_SPEED = 2.0f;
 const float INCREMENT_GAME_SPEED = 0.2f;
@@ -54,7 +65,13 @@ const int GAME_SPEED_INCREASE_AT = 50;
 
 float game_speed = BASE_GAME_SPEED;
 
+const int MAX_AGENT_COUNT = 100;
+
+int agent_count = MAX_AGENT_COUNT;
+int generation_count = 1;
+
 float distance = 0;
+int best_distance = 0;
 
 std::vector<Cactus> vegetation;
 int cactus_spawn_chance = 10;
@@ -62,11 +79,15 @@ float spawn_cactus_delay = 1.0f;
 float spawn_cactus_timer;
 
 const float MIN_NEXT_CACTUS_DISTANCE = 3.0f;
-const float MAX_NEXT_CACTUS_DISTANCE = 10.0f;
+const float MAX_NEXT_CACTUS_DISTANCE = 7.0f;
 
 const float MAX_CACTUS_DISTANCE = 500.0f;
-const float MAX_CACTUS_HEIGHT = 120.0f;
+
+const float MAX_CACTUS_HEIGHT = 150.0f;
 const float MIN_CACTUS_HEIGHT = 70.0f;
+
+const float MAX_CACTUS_WIDTH = 70.0f;
+const float MIN_CACTUS_WIDTH = 30.0f;
 
 float distance_from_last_spawn = 0.0f;
 float next_spawn_distance;
@@ -88,9 +109,11 @@ void VegetationUpdate()
 
         next_spawn_distance = RandomFloatRange(scaled_min_distance, scaled_max_distance);
         float random_cactus_height = RandomIntRange(MIN_CACTUS_HEIGHT, MAX_CACTUS_HEIGHT);
+        float random_cactus_width = RandomIntRange(MIN_CACTUS_WIDTH, MAX_CACTUS_WIDTH);
 
         Cactus cactus;
-        cactus.Init(window_width + 100.0f, 30.0f, random_cactus_height);
+        cactus.Init(window_width + 100.0f, random_cactus_width, random_cactus_height);
+        cactus.reward_hit.resize(MAX_AGENT_COUNT, false);
 
         vegetation.push_back(cactus);
     }
@@ -111,40 +134,41 @@ RectangleShape star_rectangle;
 std::vector<Vector2f> star_positions;
 const int MAX_STAR_COUNT = 100;
 
-void AddStar()
+void StarsUpdate()
 {
-    for(int i = 0; i < 5; i++)
+    if(star_positions.size() < MAX_STAR_COUNT)
     {
         Vector2f random_position(RandomIntRange(window_width, window_width * 2 + 100.0f), RandomIntRange(0, window_height - ground_thickness));
         star_positions.push_back(random_position);
     }
-}
-
-void StarsUpdate()
-{
-    if(star_positions.size() < MAX_STAR_COUNT - 5)
-        AddStar();
-
+        
     for(int i = 0; i < star_positions.size(); i++)
     {
-        star_positions[i].x -= 110.0f * game_speed * deltaTime;
+        star_positions[i].x -= 100.0f * game_speed * deltaTime;
 
         if(star_positions[i].x < 0)
             star_positions.erase(star_positions.begin() + i);
     }
 }
 
+struct Agent
+{
+    NeuralNetwork brain;
+    Dino dino;
+
+    int id = 0;
+    int fitness = 0;
+    bool alive = true;
+    bool allow_rewards = false;
+};
+
 std::vector<Agent> population;
 std::vector<Agent> elite;
 
 const int TOP_BRAINS_COUNT = 10;
-const int MAX_AGENT_COUNT = 100;
 
 const int JUMP_PENALTY = 1;
-const int JUMP_REWARD = 5;
-
-int agent_count = MAX_AGENT_COUNT;
-int generation_count = 1;
+const int JUMP_CACTUS_REWARD = 5;
 
 Agent default_agent;
 
@@ -172,8 +196,9 @@ void CreateBetterPopulation()
 
         Agent new_agent = default_agent;
         new_agent.brain = new_brain;
-        new_agent.dino.color = agent.dino.color;
         new_agent.id = population.size() + 1;
+        new_agent.dino.color = agent.dino.color;
+        new_agent.dino.rectangle_shape.setFillColor(new_agent.dino.color);
 
         population.push_back(new_agent);
     }
@@ -245,6 +270,7 @@ void Start()
     }
 
     distance_text.setFillColor(Color::Black);
+    distance_text.setCharacterSize(18);
     distance_text.setPosition({10.0f, 0.0f});
 
     generation_info_text.setFillColor(Color::White);
@@ -264,7 +290,7 @@ void Start()
     star_rectangle = RectangleShape({1, 1});
     star_rectangle.setOrigin({0.5f, 0.5f});
     star_rectangle.setFillColor(Color::Black);
-    star_rectangle.scale({5.0f, 5.0f});
+    star_rectangle.scale({2.0f, 2.0f});
 
     ground_rectangle = RectangleShape({window_width, ground_thickness});
     ground_rectangle.setFillColor(Color::Black);
@@ -272,17 +298,15 @@ void Start()
 
     ground_collider.Create(0.0f, window_height - ground_thickness + 1.0f, window_width, ground_thickness);
 
-    default_agent.dino.color = Color(0, 0, 0, 50);
     default_agent.dino.Init(150.0f, 50.0f, 100.0f);
-    default_agent.dino.jump_force = 650.0f;
-    default_agent.alive = true;
 
     for (int i = 0; i < agent_count; i++)
     {
         Agent agent = default_agent;
         agent.brain.Init();
         agent.id = i + 1;
-        agent.dino.color = Color(RandomIntRange(0, 200), RandomIntRange(0, 200), RandomIntRange(0, 200), 100);
+        agent.dino.color = Color(RandomIntRange(0, 255), 0, RandomIntRange(0, 255), 100);
+        agent.dino.rectangle_shape.setFillColor(agent.dino.color);
 
         population.push_back(agent);
     }
@@ -291,7 +315,7 @@ void Start()
 void Update()
 {
     distance += game_speed * deltaTime;
-    distance_text.setString(std::to_string((int)distance));
+    distance_text.setString("SCORE: " + std::to_string((int)distance) + " HIGHSCORE: " + std::to_string(best_distance));
 
     int current_speed = int(distance) / GAME_SPEED_INCREASE_AT;
 
@@ -302,7 +326,9 @@ void Update()
 
         game_speed_text.setString("GAME SPEED: " + std::to_string(game_speed));
     }
-
+    
+    StarsUpdate();
+    
     for(auto &agent : population)
     {
         if(!agent.alive) continue;
@@ -310,10 +336,13 @@ void Update()
         float distance_to_cactus = MAX_CACTUS_DISTANCE;
         bool noObstacleNear = true;
 
-        float input_one = 1.0f;
-        float input_two = 0.0f;
-        float input_three = game_speed / MAX_GAME_SPEED;
-        float input_four = agent.dino.isOnGround ? 1.0f : 0.0f;
+        std::vector<float> inputs(INPUT_COUNT);
+
+        inputs[0] = 0.0f;
+        inputs[1] = 0.0f;
+        inputs[2] = 0.0f;
+        inputs[3] = agent.dino.isOnGround ? 1.0f : 0.0f;
+        inputs[4] = game_speed / MAX_GAME_SPEED; 
 
         if(!vegetation.empty())
         {
@@ -323,33 +352,46 @@ void Update()
             if(distance_to_cactus > 0.0f)
             {
                 noObstacleNear = distance_to_cactus > 200.0f;
-                input_one = distance_to_cactus / MAX_CACTUS_DISTANCE;
-                input_two = vegetation.front().height / MAX_CACTUS_HEIGHT;
+                inputs[0] = distance_to_cactus / MAX_CACTUS_DISTANCE;
+                inputs[1] = vegetation.front().height / MAX_CACTUS_HEIGHT;
+                inputs[2] = vegetation.front().width / MAX_CACTUS_WIDTH;
             }
         }
 
-        float output = agent.brain.Think(input_one, input_two, input_three, input_four);
+        float jump_output = agent.brain.Think(inputs);
+        jump_output = Sigmoid(jump_output);
 
-        if(output > 0.5f)
+        bool shouldJump = jump_output > 0.5f;
+
+        if(shouldJump)
         {
-            agent.dino.Jump();
+            if(!agent.dino.isJumping)
+            {
+                agent.dino.Jump();
+            }
 
             if(noObstacleNear) agent.fitness -= JUMP_PENALTY;
-                else agent.fitness += JUMP_REWARD;
+        }
+        else 
+        {
+            if(agent.dino.jumpHeld)
+            {
+                agent.dino.ReleaseJump();
+            }
         }
         
         agent.dino.Update();
     }
 
-    StarsUpdate();
     VegetationUpdate();
-    
-    for(const auto &cactus : vegetation)
+
+    for(auto &cactus : vegetation)
     {
         for(auto &agent : population)
         {
             if(!agent.alive) continue;
-            if(Distance(agent.dino.position, cactus.position) > MAX_CACTUS_DISTANCE) continue;
+            if(cactus.position.x - agent.dino.position.x > MAX_CACTUS_DISTANCE) continue;
+            if(cactus.collider.right < agent.dino.position.x - 10.0f) continue;
         
             if(IntersectBox(cactus.collider, agent.dino.collider))
             {
@@ -359,6 +401,12 @@ void Update()
 
                 generation_info_text.setString("GENERATION: " + std::to_string(generation_count) + " | ALIVE: " + std::to_string(agent_count));
             }
+
+            if(agent.dino.collider.left > cactus.collider.right - 5.0f && agent.dino.collider.right < cactus.collider.right && !cactus.reward_hit[agent.id])
+            {
+                agent.fitness += JUMP_CACTUS_REWARD;
+                cactus.reward_hit[agent.id] = true;
+            }
         }
     }
 
@@ -367,7 +415,9 @@ void Update()
         SelectElites();
         CreateBetterPopulation();
         agent_count = MAX_AGENT_COUNT;
-        
+        if(best_distance < int(distance))
+            best_distance = int(distance);
+
         generation_count++;
         generation_info_text.setString("GENERATION: " + std::to_string(generation_count) + " | ALIVE: " + std::to_string(agent_count));
         ResetGame();
@@ -387,13 +437,12 @@ void Draw()
         window.draw(star_rectangle);
     }
     
-    for(auto cactus : vegetation)
+    for(auto &cactus : vegetation)
         cactus.Draw();
     
-    for(auto agent : population)
+    for(auto &agent : population)
     {
         if(!agent.alive) continue;
-        agent.dino.rectangle_shape.setFillColor(agent.dino.color);
         agent.dino.Draw();
 
         agent_id_text.setString(std::to_string(agent.id));

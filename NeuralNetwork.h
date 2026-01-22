@@ -1,13 +1,3 @@
-int RandomIntRange(int min, int max)
-{
-    return min + rand() % (max - min + 1);
-}
-
-float RandomFloatRange(float min, float max)
-{   
-    return min + (float)rand() / RAND_MAX * (max - min);
-}
-
 float Sigmoid(float x)
 {
     return 1.0f / (1.0f + std::exp(-x));    
@@ -16,21 +6,24 @@ float Sigmoid(float x)
 const float MUTATE_AMOUNT = 0.3f;
 const float MUTATION_RATE = 0.1f;
 
+const int INPUT_COUNT = 5;
+const int NEURON_COUNT = 8;
+
 struct NeuralNetwork
 {  
-    float input_weight[4][6];
-    float input_bias[6];
+    float input_weight[INPUT_COUNT][NEURON_COUNT];
+    float input_bias[NEURON_COUNT];
 
-    float output_weights[6];
+    float output_weights[NEURON_COUNT];
     float output_bias;
 
     void Init()
     {
-        for(int i = 0; i < 4; i++)
-            for(int j = 0; j < 6; j++)
+        for(int i = 0; i < INPUT_COUNT; i++)
+            for(int j = 0; j < NEURON_COUNT; j++)
                 input_weight[i][j] = RandomFloatRange(-1.0f, 1.0f);
 
-        for(int i = 0; i < 6; i++)
+        for(int i = 0; i < NEURON_COUNT; i++)
         {
             input_bias[i] = RandomFloatRange(-1.0f, 1.0f);
             output_weights[i] = RandomFloatRange(-1.0f, 1.0f);
@@ -39,15 +32,17 @@ struct NeuralNetwork
         output_bias = RandomFloatRange(-1.0f, 1.0f);
     }
     
-    float Think(float distance_to_cactus, float size_of_cactus, float game_speed, float onground)
+    float Think(const std::vector<float> &inputs)
     {
-        float output_calculation = 0;
-        for(int i = 0; i < 6; i++)
+        float output_calculation = 0.0f;
+        for(int i = 0; i < NEURON_COUNT; i++)
         {
-            float input_calculation = distance_to_cactus * input_weight[0][i] + 
-                                size_of_cactus * input_weight[1][i] +
-                                game_speed * input_weight[2][i] +
-                                onground * input_weight[3][i] + input_bias[i];
+            float input_calculation = 0.0f;
+
+            for(int j = 0; j < INPUT_COUNT; j++)
+                input_calculation += inputs[j] * input_weight[j][i];
+
+            input_calculation += input_bias[i]; 
             
             output_calculation += output_weights[i] * input_calculation;
         }
@@ -59,8 +54,8 @@ struct NeuralNetwork
 
     void Mutate()
     {
-        for(int i = 0; i < 4; i++)
-            for(int j = 0; j < 6; j++)
+        for(int i = 0; i < INPUT_COUNT; i++)
+            for(int j = 0; j < NEURON_COUNT; j++)
             {
                 if(RandomFloatRange(0.0f, 1.0f) < MUTATION_RATE)
                 {
@@ -69,7 +64,7 @@ struct NeuralNetwork
                 }
             }
 
-        for(int i = 0; i < 6; i++)
+        for(int i = 0; i < NEURON_COUNT; i++)
         {
             if(RandomFloatRange(0.0f, 1.0f) < MUTATION_RATE)
             {
@@ -90,13 +85,4 @@ struct NeuralNetwork
             output_bias = std::clamp(output_bias, -1.0f, 1.0f);
         }
     } 
-};
-
-struct Agent
-{
-    int id;
-    NeuralNetwork brain;
-    Dino dino;
-    float fitness;
-    bool alive;
 };
