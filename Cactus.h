@@ -33,6 +33,7 @@ struct Cactus
 
     void Draw()
     {
+        rectangle_shape.setFillColor(color);
         rectangle_shape.setPosition(position);
         window.draw(rectangle_shape);
     }

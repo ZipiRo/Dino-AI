@@ -41,6 +41,20 @@ float RandomFloatRange(float min, float max)
     return min + (float)rand() / RAND_MAX * (max - min);
 }
 
+Color RandomDominantColor()
+{
+    int dominant_color = RandomIntRange(1, 3);
+
+    int r = RandomIntRange(50, 255);
+    r *= (dominant_color == 1) ? 1 : 0;
+    int g = RandomIntRange(50, 255);
+    g *= (dominant_color == 2) ? 1 : 0;
+    int b = RandomIntRange(50, 255);
+    b *= (dominant_color == 3) ? 1 : 0;
+
+    return Color(r, g, b);
+}
+
 const float GRAVITY = 900.0f;
 
 Text distance_text{font_JetBrains};
@@ -60,12 +74,13 @@ bool jump_pressed = false;
 
 const float MAX_GAME_SPEED = 10.0f;
 const float BASE_GAME_SPEED = 2.0f;
-const float INCREMENT_GAME_SPEED = 0.2f;
+const float INCREMENT_GAME_SPEED_BY = 0.25f;
 const int GAME_SPEED_INCREASE_AT = 50;
 
 float game_speed = BASE_GAME_SPEED;
+int last_speed_increase;
 
-const int MAX_AGENT_COUNT = 100;
+const int MAX_AGENT_COUNT = 200;
 
 int agent_count = MAX_AGENT_COUNT;
 int generation_count = 1;
@@ -74,9 +89,6 @@ float distance = 0;
 int best_distance = 0;
 
 std::vector<Cactus> vegetation;
-int cactus_spawn_chance = 10;
-float spawn_cactus_delay = 1.0f;
-float spawn_cactus_timer;
 
 const float MIN_NEXT_CACTUS_DISTANCE = 3.0f;
 const float MAX_NEXT_CACTUS_DISTANCE = 7.0f;
@@ -91,8 +103,6 @@ const float MIN_CACTUS_WIDTH = 30.0f;
 
 float distance_from_last_spawn = 0.0f;
 float next_spawn_distance;
-
-int last_speed_increase;
 
 void VegetationUpdate()
 {
@@ -159,8 +169,10 @@ struct Agent
     int id = 0;
     int fitness = 0;
     bool alive = true;
-    bool allow_rewards = false;
+    bool used_jump = false;
 };
+
+Agent default_agent;
 
 std::vector<Agent> population;
 std::vector<Agent> elite;
@@ -169,8 +181,6 @@ const int TOP_BRAINS_COUNT = 10;
 
 const int JUMP_PENALTY = 1;
 const int JUMP_CACTUS_REWARD = 5;
-
-Agent default_agent;
 
 void SelectElites()
 {
@@ -189,18 +199,17 @@ void CreateBetterPopulation()
 
     while (population.size() < MAX_AGENT_COUNT)
     {
-        const Agent &agent = elite[RandomIntRange(0, TOP_BRAINS_COUNT)];
-        NeuralNetwork elite_brain = agent.brain;
-        NeuralNetwork new_brain = elite_brain;
+        const Agent &parent = elite[RandomIntRange(0, TOP_BRAINS_COUNT)];
+        NeuralNetwork new_brain = parent.brain;
         new_brain.Mutate();
 
-        Agent new_agent = default_agent;
-        new_agent.brain = new_brain;
-        new_agent.id = population.size() + 1;
-        new_agent.dino.color = agent.dino.color;
-        new_agent.dino.rectangle_shape.setFillColor(new_agent.dino.color);
+        Agent child = default_agent;
+        child.brain = new_brain;
+        child.id = population.size() + 1;
+        child.dino.color = parent.dino.color;
+        child.dino.rectangle_shape.setFillColor(child.dino.color);
 
-        population.push_back(new_agent);
+        population.push_back(child);
     }
 }
 
@@ -208,12 +217,11 @@ void ResetGame()
 {
     vegetation.clear();
     distance = 0.0f;
-    spawn_cactus_timer = 0.0f;
     distance_from_last_spawn = 0.0f;
     next_spawn_distance = 0.0f;
     game_speed = BASE_GAME_SPEED;
-    game_speed_text.setString("GAME SPEED: " + std::to_string(game_speed));
     last_speed_increase = 0;
+    game_speed_text.setString("GAME SPEED: " + std::to_string(game_speed));
 }
 
 void SaveElites()
@@ -252,6 +260,117 @@ void LoadElites()
     }
 
     file.close();
+}
+
+void UpdatePopulation()
+{
+    /// UPDATE AGENTS AND THINK PHASE
+    for(auto &agent : population)
+    {
+        if(!agent.alive) continue;
+
+        float distance_to_cactus = MAX_CACTUS_DISTANCE;
+
+        std::vector<float> inputs(INPUT_COUNT);
+        Cactus cactus;
+
+        for(auto &cactus_it : vegetation)
+        {
+            distance_to_cactus = cactus_it.position.x - agent.dino.position.x; 
+
+            if(distance_to_cactus >= 0.0f)
+            {
+                cactus = cactus_it;
+                break;
+            }
+        }
+
+        inputs[0] = distance_to_cactus / MAX_CACTUS_DISTANCE;
+        inputs[1] = cactus.height / MAX_CACTUS_HEIGHT;
+        inputs[2] = cactus.width / MAX_CACTUS_WIDTH;
+        inputs[3] = agent.dino.isOnGround ? 1.0f : 0.0f;
+        inputs[4] = game_speed / MAX_GAME_SPEED; 
+
+        float jump_output = agent.brain.Think(inputs);
+
+        bool shouldJump = jump_output > 0.5f;
+
+        if(shouldJump)
+        {
+            if(!agent.dino.isJumping)
+            {
+                agent.dino.Jump();
+                agent.used_jump = true;
+            }
+        }
+        else 
+        {
+            if(agent.dino.jumpHeld)
+            {
+                agent.dino.ReleaseJump();
+            }
+        }
+        
+        agent.dino.Update();
+    }
+
+    /// REWARDS AND COLLISION PHASE
+    for(auto &agent : population)
+    {
+        if(!agent.alive) continue;
+
+        Cactus cactus;
+
+        for(auto &cactus_it : vegetation)
+        {
+            float distance_to_cactus = cactus_it.collider.right - agent.dino.position.x; 
+
+            if(distance_to_cactus >= 0.0f)
+            {
+                cactus = cactus_it;
+                break;
+            }
+        }
+
+        if(cactus.position.x - agent.dino.position.x > MAX_CACTUS_DISTANCE) continue;
+        if(cactus.collider.right < agent.dino.position.x - 10.0f) continue;
+    
+        if(IntersectBox(cactus.collider, agent.dino.collider))
+        {
+            agent.fitness += (int)distance;
+            agent.alive = false;
+            agent_count--;
+
+            generation_info_text.setString("GENERATION: " + std::to_string(generation_count) + " | ALIVE: " + std::to_string(agent_count));
+        }
+
+        if(agent.dino.collider.left > cactus.collider.right && !cactus.reward_hit[agent.id] && agent.used_jump)
+        {
+            agent.fitness += JUMP_CACTUS_REWARD;
+            cactus.reward_hit[agent.id] = true;
+            agent.used_jump = false;
+        }
+
+        if(agent.dino.isOnGround && agent.used_jump)
+        {
+            agent.fitness -= JUMP_PENALTY;
+            agent.used_jump = false;
+        }
+    }
+
+    /// RESET THE SIMULATION
+    if(agent_count <= 0) 
+    {
+        SelectElites();
+        CreateBetterPopulation();
+
+        agent_count = MAX_AGENT_COUNT;
+
+        generation_count++;
+        generation_info_text.setString("GENERATION: " + std::to_string(generation_count) + " | ALIVE: " + std::to_string(agent_count));
+        ResetGame();
+        SaveElites();
+    }
 }
 
 void Start()
@@ -305,7 +424,8 @@ void Start()
         Agent agent = default_agent;
         agent.brain.Init();
         agent.id = i + 1;
-        agent.dino.color = Color(RandomIntRange(0, 255), 0, RandomIntRange(0, 255), 100);
+        agent.dino.color = RandomDominantColor();
+        agent.dino.color.a = 50;
         agent.dino.rectangle_shape.setFillColor(agent.dino.color);
 
         population.push_back(agent);
@@ -315,114 +435,26 @@ void Start()
 void Update()
 {
     distance += game_speed * deltaTime;
+    if(best_distance < int(distance))
+        best_distance = int(distance);
+
     distance_text.setString("SCORE: " + std::to_string((int)distance) + " HIGHSCORE: " + std::to_string(best_distance));
 
     int current_speed = int(distance) / GAME_SPEED_INCREASE_AT;
 
     if(current_speed > last_speed_increase)
     {
-        game_speed += INCREMENT_GAME_SPEED;
+        game_speed += INCREMENT_GAME_SPEED_BY;
         last_speed_increase = current_speed;
 
         game_speed_text.setString("GAME SPEED: " + std::to_string(game_speed));
     }
-    
+
     StarsUpdate();
     
-    for(auto &agent : population)
-    {
-        if(!agent.alive) continue;
-
-        float distance_to_cactus = MAX_CACTUS_DISTANCE;
-        bool noObstacleNear = true;
-
-        std::vector<float> inputs(INPUT_COUNT);
-
-        inputs[0] = 0.0f;
-        inputs[1] = 0.0f;
-        inputs[2] = 0.0f;
-        inputs[3] = agent.dino.isOnGround ? 1.0f : 0.0f;
-        inputs[4] = game_speed / MAX_GAME_SPEED; 
-
-        if(!vegetation.empty())
-        {
-            Cactus &cactus = vegetation.front();
-            distance_to_cactus = cactus.position.x - agent.dino.position.x; 
-
-            if(distance_to_cactus > 0.0f)
-            {
-                noObstacleNear = distance_to_cactus > 200.0f;
-                inputs[0] = distance_to_cactus / MAX_CACTUS_DISTANCE;
-                inputs[1] = vegetation.front().height / MAX_CACTUS_HEIGHT;
-                inputs[2] = vegetation.front().width / MAX_CACTUS_WIDTH;
-            }
-        }
-
-        float jump_output = agent.brain.Think(inputs);
-        jump_output = Sigmoid(jump_output);
-
-        bool shouldJump = jump_output > 0.5f;
-
-        if(shouldJump)
-        {
-            if(!agent.dino.isJumping)
-            {
-                agent.dino.Jump();
-            }
-
-            if(noObstacleNear) agent.fitness -= JUMP_PENALTY;
-        }
-        else 
-        {
-            if(agent.dino.jumpHeld)
-            {
-                agent.dino.ReleaseJump();
-            }
-        }
-        
-        agent.dino.Update();
-    }
-
     VegetationUpdate();
 
-    for(auto &cactus : vegetation)
-    {
-        for(auto &agent : population)
-        {
-            if(!agent.alive) continue;
-            if(cactus.position.x - agent.dino.position.x > MAX_CACTUS_DISTANCE) continue;
-            if(cactus.collider.right < agent.dino.position.x - 10.0f) continue;
-        
-            if(IntersectBox(cactus.collider, agent.dino.collider))
-            {
-                agent.fitness += (int)distance;
-                agent.alive = false;
-                agent_count--;
-
-                generation_info_text.setString("GENERATION: " + std::to_string(generation_count) + " | ALIVE: " + std::to_string(agent_count));
-            }
-
-            if(agent.dino.collider.left > cactus.collider.right - 5.0f && agent.dino.collider.right < cactus.collider.right && !cactus.reward_hit[agent.id])
-            {
-                agent.fitness += JUMP_CACTUS_REWARD;
-                cactus.reward_hit[agent.id] = true;
-            }
-        }
-    }
-
-    if(agent_count <= 0) 
-    {
-        SelectElites();
-        CreateBetterPopulation();
-        agent_count = MAX_AGENT_COUNT;
-        if(best_distance < int(distance))
-            best_distance = int(distance);
-
-        generation_count++;
-        generation_info_text.setString("GENERATION: " + std::to_string(generation_count) + " | ALIVE: " + std::to_string(agent_count));
-        ResetGame();
-        SaveElites();
-    }
+    UpdatePopulation();
 }
 
 void Draw()

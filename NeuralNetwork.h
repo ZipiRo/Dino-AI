@@ -49,7 +49,7 @@ struct NeuralNetwork
 
         output_calculation += output_bias;
 
-        return output_calculation;
+        return Sigmoid(output_calculation);
     }
 
     void Mutate()

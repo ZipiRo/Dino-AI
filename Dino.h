@@ -47,7 +47,6 @@ struct Dino
 
         linear_velocity += Vector2f(0, gravity) * deltaTime;
         position += linear_velocity * deltaTime;
-        rectangle_shape.setPosition(position);
 
         collider.Create(position.x, position.y, width, height);
 
@@ -70,6 +69,8 @@ struct Dino
 
     void Draw()
     {
+        rectangle_shape.setPosition(position);
+        rectangle_shape.setFillColor(color);
         window.draw(rectangle_shape);
     }
 
