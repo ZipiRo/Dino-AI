@@ -45,8 +45,8 @@ struct Dino
                 gravity += 1000;
         }
 
-        linear_velocity += Vector2f(0, gravity) * deltaTime;
-        position += linear_velocity * deltaTime;
+        linear_velocity += Vector2f(0, gravity) * (float)Timer::deltaTime;
+        position += linear_velocity * (float)Timer::deltaTime;
 
         collider.Create(position.x, position.y, width, height);
 

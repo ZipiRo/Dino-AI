@@ -3,38 +3,48 @@ float Sigmoid(float x)
     return 1.0f / (1.0f + std::exp(-x));    
 }
 
-const float MUTATE_AMOUNT = 0.3f;
+const float MUTATE_AMOUNT = 0.1f;
 const float MUTATION_RATE = 0.1f;
 
 const int INPUT_COUNT = 5;
 const int NEURON_COUNT = 8;
+const int OUTPUT_COUNT = 1;
 
 struct NeuralNetwork
 {  
+private:
+    std::vector<float> outputs;
+
+public:
     float input_weight[INPUT_COUNT][NEURON_COUNT];
     float input_bias[NEURON_COUNT];
 
-    float output_weights[NEURON_COUNT];
-    float output_bias;
+    float output_weight[NEURON_COUNT][OUTPUT_COUNT];
+    float output_bias[OUTPUT_COUNT];
 
     void Init()
     {
+        outputs.resize(OUTPUT_COUNT);
+
         for(int i = 0; i < INPUT_COUNT; i++)
             for(int j = 0; j < NEURON_COUNT; j++)
                 input_weight[i][j] = RandomFloatRange(-1.0f, 1.0f);
 
         for(int i = 0; i < NEURON_COUNT; i++)
-        {
+            for(int j = 0; j < OUTPUT_COUNT; j++)
+                output_weight[i][j] = RandomFloatRange(-1.0f, 1.0f);
+        
+        for(int i = 0; i < NEURON_COUNT; i++)
             input_bias[i] = RandomFloatRange(-1.0f, 1.0f);
-            output_weights[i] = RandomFloatRange(-1.0f, 1.0f);
-        }
 
-        output_bias = RandomFloatRange(-1.0f, 1.0f);
+        for(int i = 0; i < OUTPUT_COUNT; i++)
+            output_bias[i] = RandomFloatRange(-1.0f, 1.0f);
     }
     
-    float Think(const std::vector<float> &inputs)
+    std::vector<float> Think(const std::vector<float> &inputs)
     {
-        float output_calculation = 0.0f;
+        float hidden[NEURON_COUNT];
+
         for(int i = 0; i < NEURON_COUNT; i++)
         {
             float input_calculation = 0.0f;
@@ -44,12 +54,22 @@ struct NeuralNetwork
 
             input_calculation += input_bias[i]; 
             
-            output_calculation += output_weights[i] * input_calculation;
+            hidden[i] = std::tanh(input_calculation);
         }
 
-        output_calculation += output_bias;
+        for(int i = 0; i < OUTPUT_COUNT; i++)
+        {
+            float output_calculation = 0.0f;
 
-        return Sigmoid(output_calculation);
+            for(int j = 0; j < NEURON_COUNT; j++)
+                output_calculation += hidden[j] * output_weight[j][i];
+
+            output_calculation += output_bias[i];
+
+            outputs[i] = Sigmoid(output_calculation);
+        }
+
+        return outputs;
     }
 
     void Mutate()
@@ -63,6 +83,16 @@ struct NeuralNetwork
                     input_weight[i][j] = std::clamp(input_weight[i][j], -1.0f, 1.0f);
                 }
             }
+        
+        for(int i = 0; i < NEURON_COUNT; i++)
+            for(int j = 0; j < OUTPUT_COUNT; j++)
+            {
+                if(RandomFloatRange(0.0f, 1.0f) < MUTATION_RATE)
+                {
+                    output_weight[i][j] += RandomFloatRange(-MUTATE_AMOUNT, MUTATE_AMOUNT);
+                    output_weight[i][j] = std::clamp(output_weight[i][j], -1.0f, 1.0f);
+                }
+            }
 
         for(int i = 0; i < NEURON_COUNT; i++)
         {
@@ -71,18 +101,15 @@ struct NeuralNetwork
                 input_bias[i] += RandomFloatRange(-MUTATE_AMOUNT, MUTATE_AMOUNT);
                 input_bias[i] = std::clamp(input_bias[i], -1.0f, 1.0f);
             }
-            
-            if(RandomFloatRange(0.0f, 1.0f) < MUTATION_RATE)
-            {
-                output_weights[i] += RandomFloatRange(-MUTATE_AMOUNT, MUTATE_AMOUNT);
-                output_weights[i] = std::clamp(output_weights[i], -1.0f, 1.0f);
-            }
         }
         
-        if(RandomFloatRange(0.0f, 1.0f) < MUTATION_RATE)
+        for(int i = 0; i < OUTPUT_COUNT; i++)
         {
-            output_bias += RandomFloatRange(-MUTATE_AMOUNT, MUTATE_AMOUNT);
-            output_bias = std::clamp(output_bias, -1.0f, 1.0f);
+            if(RandomFloatRange(0.0f, 1.0f) < MUTATION_RATE)
+            {
+                output_bias[i] += RandomFloatRange(-MUTATE_AMOUNT, MUTATE_AMOUNT);
+                output_bias[i] = std::clamp(output_bias[i], -1.0f, 1.0f);
+            }
         }
     } 
 };

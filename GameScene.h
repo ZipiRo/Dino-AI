@@ -108,7 +108,7 @@ const float MIN_CACTUS_WIDTH = 30.0f;
 
 void VegetationUpdate()
 {
-    distance_from_last_spawn += game_speed * deltaTime;
+    distance_from_last_spawn += game_speed * Timer::deltaTime;
 
     if(distance_from_last_spawn >= next_spawn_distance)
     {
@@ -134,7 +134,7 @@ void VegetationUpdate()
     {
         Cactus &cactus = vegetation[i];
         
-        cactus.position.x -= 150.0f * game_speed * deltaTime;
+        cactus.position.x -= 150.0f * game_speed * Timer::deltaTime;
         cactus.Update();
 
         if(cactus.collider.right < 0.0f)
@@ -156,7 +156,7 @@ void StarsUpdate()
         
     for(int i = 0; i < star_positions.size(); i++)
     {
-        star_positions[i].x -= 100.0f * game_speed * deltaTime;
+        star_positions[i].x -= 100.0f * game_speed * Timer::deltaTime;
 
         if(star_positions[i].x < 0)
             star_positions.erase(star_positions.begin() + i);
@@ -181,7 +181,7 @@ std::vector<Agent> elite;
 
 const int TOP_BRAINS_COUNT = 10;
 
-const int JUMP_PENALTY = 1;
+const int JUMP_PENALTY = 5;
 const int JUMP_CACTUS_REWARD = 5;
 
 void SelectElites()
@@ -236,7 +236,7 @@ void SaveElites()
         file.write((char*)&brain.input_weight[0][0], 3 * 6 * sizeof(float));
         file.write((char*)brain.input_bias, 6 * sizeof(float));
 
-        file.write((char*)brain.output_weights, 6 * sizeof(float));
+        file.write((char*)brain.output_weight, 6 * sizeof(float));
         file.write((char*)&brain.output_bias, sizeof(float));
     }
 
@@ -256,7 +256,7 @@ void LoadElites()
         file.read((char*)&brain.input_weight[0][0], 3 * 6 * sizeof(float));
         file.read((char*)brain.input_bias, 6 * sizeof(float));
 
-        file.read((char*)brain.output_weights, 6 * sizeof(float));
+        file.read((char*)brain.output_weight, 6 * sizeof(float));
         file.read((char*)&brain.output_bias, sizeof(float));
     }
 
@@ -292,7 +292,7 @@ void UpdatePopulation()
         inputs[3] = agent.dino.isOnGround ? 1.0f : 0.0f;
         inputs[4] = game_speed / MAX_GAME_SPEED; 
 
-        float jump_output = agent.brain.Think(inputs);
+        float jump_output = agent.brain.Think(inputs)[0]; /// JUMP OUTPUT
 
         bool shouldJump = jump_output > 0.5f;
 
@@ -434,7 +434,7 @@ void Start()
 
 void Update()
 {
-    distance += game_speed * deltaTime;
+    distance += game_speed * Timer::deltaTime;
     if(best_distance < int(distance))
         best_distance = int(distance);
 

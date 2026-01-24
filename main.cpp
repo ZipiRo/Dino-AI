@@ -2,6 +2,7 @@
 #include <cmath>
 #include <iostream>
 
+#include "Timer.h"
 using namespace sf;
 
 RenderWindow window;
@@ -10,7 +11,6 @@ const int window_height = 720;
 const char *window_title = "DinoAI - Neural Network";
 
 const int FPS = 60;
-const float deltaTime = 1.0f / FPS;
 
 const float PI = 3.1415926354f;
 
@@ -21,12 +21,13 @@ View canvas;
 
 Font font_JetBrains{};
 
-#include "AI_Game.h"
+#include "GameScene.h"
 
 int main()
 {
     window = RenderWindow(VideoMode({window_width, window_height}), window_title);
  
+    Timer::GetInstance();
     Start();
 
     while (window.isOpen())
@@ -36,15 +37,18 @@ int main()
             if (event->is<Event::Closed>())
                 window.close();
         }
- 
-        Update();
+        
+        Timer::Tick();
 
-        window.clear(BackgroundColor);
+        if(Timer::Timer::deltaTime >= 1.0f / FPS)
+        {
+            Timer::Reset();
 
-        Draw();
+            Update();
 
-        window.display();
-
-        sleep(seconds(deltaTime));
+            window.clear(BackgroundColor);
+            Draw();
+            window.display();
+        }
     }
 }
