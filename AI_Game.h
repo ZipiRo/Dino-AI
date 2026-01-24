@@ -90,8 +90,13 @@ int best_distance = 0;
 
 std::vector<Cactus> vegetation;
 
+/// THIS ARE TIME BASED
 const float MIN_NEXT_CACTUS_DISTANCE = 3.0f;
-const float MAX_NEXT_CACTUS_DISTANCE = 7.0f;
+const float MAX_NEXT_CACTUS_DISTANCE = 7.0f; 
+
+float distance_from_last_spawn = 0.0f;
+float next_spawn_distance;
+/// THIS ARE TIME BASED
 
 const float MAX_CACTUS_DISTANCE = 500.0f;
 
@@ -100,9 +105,6 @@ const float MIN_CACTUS_HEIGHT = 70.0f;
 
 const float MAX_CACTUS_WIDTH = 70.0f;
 const float MIN_CACTUS_WIDTH = 30.0f;
-
-float distance_from_last_spawn = 0.0f;
-float next_spawn_distance;
 
 void VegetationUpdate()
 {
@@ -207,7 +209,6 @@ void CreateBetterPopulation()
         child.brain = new_brain;
         child.id = population.size() + 1;
         child.dino.color = parent.dino.color;
-        child.dino.rectangle_shape.setFillColor(child.dino.color);
 
         population.push_back(child);
     }
@@ -426,7 +427,6 @@ void Start()
         agent.id = i + 1;
         agent.dino.color = RandomDominantColor();
         agent.dino.color.a = 50;
-        agent.dino.rectangle_shape.setFillColor(agent.dino.color);
 
         population.push_back(agent);
     }
