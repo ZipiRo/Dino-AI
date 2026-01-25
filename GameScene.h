@@ -72,7 +72,7 @@ Box ground_collider;
 
 bool jump_pressed = false;
 
-const float MAX_GAME_SPEED = 10.0f;
+const float MAX_GAME_SPEED = 30.0f;
 const float BASE_GAME_SPEED = 2.0f;
 const float INCREMENT_GAME_SPEED_BY = 0.25f;
 const int GAME_SPEED_INCREASE_AT = 50;
@@ -227,37 +227,37 @@ void ResetGame()
 
 void SaveElites()
 {
-    std::ofstream file(".best_elite_brain", std::ios_base::binary);
+    std::ofstream file(".neural_save", std::ios_base::binary);
 
     for(const auto& agent : elite)
     {   
         const NeuralNetwork &brain = agent.brain;
 
-        file.write((char*)&brain.input_weight[0][0], 3 * 6 * sizeof(float));
-        file.write((char*)brain.input_bias, 6 * sizeof(float));
+        file.write((char*)&brain.input_weight[0][0], INPUT_COUNT * NEURON_COUNT * sizeof(float));
+        file.write((char*)brain.input_bias, NEURON_COUNT * sizeof(float));
 
-        file.write((char*)brain.output_weight, 6 * sizeof(float));
-        file.write((char*)&brain.output_bias, sizeof(float));
+        file.write((char*)&brain.output_weight[0][0], NEURON_COUNT * OUTPUT_COUNT * sizeof(float));
+        file.write((char*)brain.output_bias, OUTPUT_COUNT * sizeof(float));
     }
 
     file.close();
 }
 
-void LoadElites()
+void LoadElites(const std::string &save_file)
 {
-    std::ifstream file(".best_elite_brain", std::ios::binary);
+    std::ifstream file(save_file, std::ios::binary);
 
     elite.resize(TOP_BRAINS_COUNT);
 
-    for(auto& agent : elite)
-    {
-        NeuralNetwork brain = agent.brain;
+    for(auto &agent : elite)
+    {   
+        agent = default_agent;
 
-        file.read((char*)&brain.input_weight[0][0], 3 * 6 * sizeof(float));
-        file.read((char*)brain.input_bias, 6 * sizeof(float));
+        file.read((char*)&agent.brain.input_weight[0][0], INPUT_COUNT * NEURON_COUNT * sizeof(float));
+        file.read((char*)agent.brain.input_bias, NEURON_COUNT * sizeof(float));
 
-        file.read((char*)brain.output_weight, 6 * sizeof(float));
-        file.read((char*)&brain.output_bias, sizeof(float));
+        file.read((char*)&agent.brain.output_weight[0][0], NEURON_COUNT * OUTPUT_COUNT * sizeof(float));
+        file.read((char*)agent.brain.output_bias, OUTPUT_COUNT * sizeof(float));
     }
 
     file.close();
@@ -358,20 +358,6 @@ void UpdatePopulation()
             agent.used_jump = false;
         }
     }
-
-    /// RESET THE SIMULATION
-    if(agent_count <= 0) 
-    {
-        SelectElites();
-        CreateBetterPopulation();
-
-        agent_count = MAX_AGENT_COUNT;
-
-        generation_count++;
-        generation_info_text.setString("GENERATION: " + std::to_string(generation_count) + " | ALIVE: " + std::to_string(agent_count));
-        ResetGame();
-        SaveElites();
-    }
 }
 
 void Start()
@@ -442,7 +428,7 @@ void Update()
 
     int current_speed = int(distance) / GAME_SPEED_INCREASE_AT;
 
-    if(current_speed > last_speed_increase)
+    if(current_speed > last_speed_increase && game_speed < MAX_GAME_SPEED)
     {
         game_speed += INCREMENT_GAME_SPEED_BY;
         last_speed_increase = current_speed;
@@ -455,6 +441,20 @@ void Update()
     VegetationUpdate();
 
     UpdatePopulation();
+
+    /// RESET THE SIMULATION
+    if(agent_count <= 0) 
+    {
+        SelectElites();
+        CreateBetterPopulation();
+
+        agent_count = MAX_AGENT_COUNT;
+
+        generation_count++;
+        generation_info_text.setString("GENERATION: " + std::to_string(generation_count) + " | ALIVE: " + std::to_string(agent_count));
+        ResetGame();
+        SaveElites();
+    }
 }
 
 void Draw()

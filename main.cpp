@@ -28,6 +28,7 @@ int main()
     window = RenderWindow(VideoMode({window_width, window_height}), window_title);
  
     Timer::GetInstance();
+    Timer::TimeScale = 5;
     Start();
 
     while (window.isOpen())
@@ -40,7 +41,7 @@ int main()
         
         Timer::Tick();
 
-        if(Timer::Timer::deltaTime >= 1.0f / FPS)
+        if(Timer::deltaTime >= 1.0f / FPS)
         {
             Timer::Reset();
 
