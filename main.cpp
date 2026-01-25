@@ -8,7 +8,7 @@ using namespace sf;
 RenderWindow window;
 const int window_width = 1280;
 const int window_height = 720;
-const char *window_title = "DinoAI - Neural Network";
+const char *window_title = "Dino - Neural Network";
 
 const int FPS = 60;
 
@@ -21,7 +21,7 @@ View canvas;
 
 Font font_JetBrains{};
 
-#include "GameScene.h"
+#include "include/GameScene.h"
 
 int main()
 {
