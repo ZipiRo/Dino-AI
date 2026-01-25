@@ -10,8 +10,6 @@ struct Cactus
 
     float collider_y_offset = 10.0f;
 
-    std::vector<bool> reward_hit;
-
     void Init(float x, float width, float height)
     {
         position = Vector2f(x, window_height - ground_thickness - height);

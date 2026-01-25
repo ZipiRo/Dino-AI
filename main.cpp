@@ -28,7 +28,6 @@ int main()
     window = RenderWindow(VideoMode({window_width, window_height}), window_title);
  
     Timer::GetInstance();
-    Timer::TimeScale = 5;
     Start();
 
     while (window.isOpen())

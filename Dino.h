@@ -28,6 +28,10 @@ struct Dino
         
         linear_velocity = Vector2f(0.0f, 0.0f);
 
+        isJumping = false;
+        jumpHeld = false;
+        isOnGround = false;
+
         rectangle_shape = RectangleShape({1, 1});
         rectangle_shape.setFillColor(color);
 

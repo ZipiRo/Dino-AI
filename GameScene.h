@@ -1,59 +1,7 @@
 #include <algorithm>
 #include <fstream>
-
-struct Box
-{
-    float left;
-    float top;
-    float right;
-    float bottom;
-
-    void Create(float x, float y, float width, float height)
-    {
-        left = x;
-        top = y;
-        right = x + width;
-        bottom = y + height;
-    }
-};
-
-bool IntersectBox(const Box& boxA, const Box& boxB)
-{
-    return boxA.right > boxB.left &&  boxA.left < boxB.right &&
-            boxA.bottom > boxB.top && boxA.top < boxB.bottom;
-}
-
-float Distance(const Vector2f &a, const Vector2f &b)
-{
-    float dx = a.x - b.x;
-    float dy = a.y - b.y;
-
-    return sqrt(dx * dx + dy * dy);
-}
-
-int RandomIntRange(int min, int max)
-{
-    return min + rand() % (max - min + 1);
-}
-
-float RandomFloatRange(float min, float max)
-{   
-    return min + (float)rand() / RAND_MAX * (max - min);
-}
-
-Color RandomDominantColor()
-{
-    int dominant_color = RandomIntRange(1, 3);
-
-    int r = RandomIntRange(50, 255);
-    r *= (dominant_color == 1) ? 1 : 0;
-    int g = RandomIntRange(50, 255);
-    g *= (dominant_color == 2) ? 1 : 0;
-    int b = RandomIntRange(50, 255);
-    b *= (dominant_color == 3) ? 1 : 0;
-
-    return Color(r, g, b);
-}
+#include "Box.h"
+#include "Utils.h"
 
 const float GRAVITY = 900.0f;
 
@@ -68,9 +16,8 @@ Box ground_collider;
 
 #include "Dino.h"
 #include "Cactus.h"
-#include "NeuralNetwork.h"
 
-bool jump_pressed = false;
+#define AI_MODE
 
 const float MAX_GAME_SPEED = 30.0f;
 const float BASE_GAME_SPEED = 2.0f;
@@ -80,15 +27,8 @@ const int GAME_SPEED_INCREASE_AT = 50;
 float game_speed = BASE_GAME_SPEED;
 int last_speed_increase;
 
-const int MAX_AGENT_COUNT = 200;
-
-int agent_count = MAX_AGENT_COUNT;
-int generation_count = 1;
-
 float distance = 0;
 int best_distance = 0;
-
-std::vector<Cactus> vegetation;
 
 /// THIS ARE TIME BASED
 const float MIN_NEXT_CACTUS_DISTANCE = 3.0f;
@@ -105,6 +45,8 @@ const float MIN_CACTUS_HEIGHT = 70.0f;
 
 const float MAX_CACTUS_WIDTH = 70.0f;
 const float MIN_CACTUS_WIDTH = 30.0f;
+
+std::vector<Cactus> vegetation;
 
 void VegetationUpdate()
 {
@@ -125,7 +67,6 @@ void VegetationUpdate()
 
         Cactus cactus;
         cactus.Init(window_width + 100.0f, random_cactus_width, random_cactus_height);
-        cactus.reward_hit.resize(MAX_AGENT_COUNT, false);
 
         vegetation.push_back(cactus);
     }
@@ -163,6 +104,18 @@ void StarsUpdate()
     }
 }
 
+#ifndef AI_MODE
+
+    Dino dino;
+    bool dino_alive = true;
+
+    float respawn_delay = 1.0f;
+    float respawn_timer;
+
+#else
+
+#include "NeuralNetwork.h"
+
 struct Agent
 {
     NeuralNetwork brain;
@@ -176,94 +129,20 @@ struct Agent
 
 Agent default_agent;
 
-std::vector<Agent> population;
-std::vector<Agent> elite;
+const int MAX_AGENT_COUNT = 200;
+
+int agent_count = MAX_AGENT_COUNT;
+int generation_count = 1;
 
 const int TOP_BRAINS_COUNT = 10;
+
+std::vector<Agent> population;
+std::vector<Agent> elite;
 
 const int JUMP_PENALTY = 5;
 const int JUMP_CACTUS_REWARD = 5;
 
-void SelectElites()
-{
-    elite.clear();
-
-    std::sort(population.begin(), population.end(), [](auto &a, auto &b)
-        { return a.fitness > b.fitness; });
-    
-    for(int i = 0; i < population.size() * float(TOP_BRAINS_COUNT / 100.0f); i++)
-        elite.push_back(population[i]);
-}
-
-void CreateBetterPopulation()
-{
-    population.clear();
-
-    while (population.size() < MAX_AGENT_COUNT)
-    {
-        const Agent &parent = elite[RandomIntRange(0, TOP_BRAINS_COUNT)];
-        NeuralNetwork new_brain = parent.brain;
-        new_brain.Mutate();
-
-        Agent child = default_agent;
-        child.brain = new_brain;
-        child.id = population.size() + 1;
-        child.dino.color = parent.dino.color;
-
-        population.push_back(child);
-    }
-}
-
-void ResetGame()
-{
-    vegetation.clear();
-    distance = 0.0f;
-    distance_from_last_spawn = 0.0f;
-    next_spawn_distance = 0.0f;
-    game_speed = BASE_GAME_SPEED;
-    last_speed_increase = 0;
-    game_speed_text.setString("GAME SPEED: " + std::to_string(game_speed));
-}
-
-void SaveElites()
-{
-    std::ofstream file(".neural_save", std::ios_base::binary);
-
-    for(const auto& agent : elite)
-    {   
-        const NeuralNetwork &brain = agent.brain;
-
-        file.write((char*)&brain.input_weight[0][0], INPUT_COUNT * NEURON_COUNT * sizeof(float));
-        file.write((char*)brain.input_bias, NEURON_COUNT * sizeof(float));
-
-        file.write((char*)&brain.output_weight[0][0], NEURON_COUNT * OUTPUT_COUNT * sizeof(float));
-        file.write((char*)brain.output_bias, OUTPUT_COUNT * sizeof(float));
-    }
-
-    file.close();
-}
-
-void LoadElites(const std::string &save_file)
-{
-    std::ifstream file(save_file, std::ios::binary);
-
-    elite.resize(TOP_BRAINS_COUNT);
-
-    for(auto &agent : elite)
-    {   
-        agent = default_agent;
-
-        file.read((char*)&agent.brain.input_weight[0][0], INPUT_COUNT * NEURON_COUNT * sizeof(float));
-        file.read((char*)agent.brain.input_bias, NEURON_COUNT * sizeof(float));
-
-        file.read((char*)&agent.brain.output_weight[0][0], NEURON_COUNT * OUTPUT_COUNT * sizeof(float));
-        file.read((char*)agent.brain.output_bias, OUTPUT_COUNT * sizeof(float));
-    }
-
-    file.close();
-}
-
-void UpdatePopulation()
+void PopulationUpdate()
 {
     /// UPDATE AGENTS AND THINK PHASE
     for(auto &agent : population)
@@ -345,10 +224,9 @@ void UpdatePopulation()
             generation_info_text.setString("GENERATION: " + std::to_string(generation_count) + " | ALIVE: " + std::to_string(agent_count));
         }
 
-        if(agent.dino.collider.left > cactus.collider.right && !cactus.reward_hit[agent.id] && agent.used_jump)
+        if(agent.dino.collider.left > cactus.collider.right && agent.used_jump)
         {
             agent.fitness += JUMP_CACTUS_REWARD;
-            cactus.reward_hit[agent.id] = true;
             agent.used_jump = false;
         }
 
@@ -358,6 +236,90 @@ void UpdatePopulation()
             agent.used_jump = false;
         }
     }
+}
+
+void SelectElites()
+{
+    elite.clear();
+
+    std::sort(population.begin(), population.end(), [](auto &a, auto &b)
+        { return a.fitness > b.fitness; });
+    
+    for(int i = 0; i < population.size() * float(TOP_BRAINS_COUNT / 100.0f); i++)
+        elite.push_back(population[i]);
+}
+
+void MutatePopulation()
+{
+    population.clear();
+
+    while (population.size() < MAX_AGENT_COUNT)
+    {
+        const Agent &parent = elite[RandomIntRange(0, TOP_BRAINS_COUNT)];
+        NeuralNetwork new_brain = parent.brain;
+        new_brain.Mutate();
+
+        Agent child = default_agent;
+        child.brain = new_brain;
+        child.id = population.size() + 1;
+        child.dino.color = parent.dino.color;
+
+        population.push_back(child);
+    }
+}
+
+void SaveTopNN()
+{
+    std::ofstream file(".neural_save", std::ios_base::binary);
+
+    for(const auto& agent : elite)
+    {   
+        const NeuralNetwork &brain = agent.brain;
+
+        file.write((char*)&brain.input_weight[0][0], INPUT_COUNT * NEURON_COUNT * sizeof(float));
+        file.write((char*)brain.input_bias, NEURON_COUNT * sizeof(float));
+
+        file.write((char*)&brain.output_weight[0][0], NEURON_COUNT * OUTPUT_COUNT * sizeof(float));
+        file.write((char*)brain.output_bias, OUTPUT_COUNT * sizeof(float));
+    }
+
+    file.close();
+}
+
+void LoadTopNN(const std::string &save_file)
+{
+    std::ifstream file(save_file, std::ios::binary);
+
+    elite.resize(TOP_BRAINS_COUNT);
+
+    for(auto &agent : elite)
+    {   
+        agent = default_agent;
+
+        file.read((char*)&agent.brain.input_weight[0][0], INPUT_COUNT * NEURON_COUNT * sizeof(float));
+        file.read((char*)agent.brain.input_bias, NEURON_COUNT * sizeof(float));
+
+        file.read((char*)&agent.brain.output_weight[0][0], NEURON_COUNT * OUTPUT_COUNT * sizeof(float));
+        file.read((char*)agent.brain.output_bias, OUTPUT_COUNT * sizeof(float));
+    }
+
+    file.close();
+}
+
+#endif
+
+void ResetGame()
+{
+    vegetation.clear();
+
+    distance = 0.0f;
+    distance_from_last_spawn = 0.0f;
+    next_spawn_distance = 0.0f;
+    
+    game_speed = BASE_GAME_SPEED;
+    last_speed_increase = 0;
+    
+    game_speed_text.setString("GAME SPEED: " + std::to_string(game_speed));
 }
 
 void Start()
@@ -379,11 +341,6 @@ void Start()
     distance_text.setCharacterSize(18);
     distance_text.setPosition({10.0f, 0.0f});
 
-    generation_info_text.setFillColor(Color::White);
-    generation_info_text.setPosition({10.0f, window_height - 70.0f});
-    generation_info_text.setString("GENERATION: 0 | ALIVE: " + std::to_string(agent_count));
-    generation_info_text.setCharacterSize(20);
-
     game_speed_text.setFillColor(Color::White);
     game_speed_text.setPosition({10.0f, window_height - 45.0f});
     game_speed_text.setString("GAME SPEED: " + std::to_string(game_speed));
@@ -404,6 +361,17 @@ void Start()
 
     ground_collider.Create(0.0f, window_height - ground_thickness + 1.0f, window_width, ground_thickness);
 
+#ifndef AI_MODE 
+
+    dino.Init(150.0f, 50.0f, 100.0f);
+
+#else
+
+    generation_info_text.setFillColor(Color::White);
+    generation_info_text.setPosition({10.0f, window_height - 70.0f});
+    generation_info_text.setString("GENERATION: 0 | ALIVE: " + std::to_string(agent_count));
+    generation_info_text.setCharacterSize(20);
+
     default_agent.dino.Init(150.0f, 50.0f, 100.0f);
 
     for (int i = 0; i < agent_count; i++)
@@ -416,6 +384,8 @@ void Start()
 
         population.push_back(agent);
     }
+
+#endif
 }
 
 void Update()
@@ -439,22 +409,73 @@ void Update()
     StarsUpdate();
     
     VegetationUpdate();
+    
+#ifndef AI_MODE
 
-    UpdatePopulation();
+    if(!dino_alive)
+    {
+        respawn_timer += Timer::deltaTime;
+
+        if(respawn_timer >= respawn_delay)
+        {
+            ResetGame();
+            dino_alive = true;
+            dino.Init(150.0f, 50.0f, 100.0f);
+            respawn_timer = 0;
+        }
+    }
+    else 
+    {
+        if(Keyboard::isKeyPressed(Keyboard::Key::Space))
+        {
+            dino.Jump();
+        }
+        else
+        {
+            dino.ReleaseJump();
+        }
+
+        dino.Update();
+
+        Cactus cactus;
+
+        for(auto &cactus_it : vegetation)
+        {
+            float distance_to_cactus = cactus_it.collider.right - dino.position.x; 
+
+            if(distance_to_cactus >= 0.0f)
+            {
+                cactus = cactus_it;
+                break;
+            }
+        }
+
+        if(IntersectBox(cactus.collider, dino.collider))
+        {
+            dino_alive = false;
+            game_speed = 0.0f;
+        }
+    }    
+    
+#else 
+
+    PopulationUpdate();
 
     /// RESET THE SIMULATION
     if(agent_count <= 0) 
     {
         SelectElites();
-        CreateBetterPopulation();
+        MutatePopulation();
 
         agent_count = MAX_AGENT_COUNT;
 
         generation_count++;
         generation_info_text.setString("GENERATION: " + std::to_string(generation_count) + " | ALIVE: " + std::to_string(agent_count));
         ResetGame();
-        SaveElites();
+        SaveTopNN();
     }
+
+#endif
 }
 
 void Draw()
@@ -471,7 +492,13 @@ void Draw()
     
     for(auto &cactus : vegetation)
         cactus.Draw();
-    
+
+#ifndef AI_MODE
+
+    dino.Draw();
+
+#else
+
     for(auto &agent : population)
     {
         if(!agent.alive) continue;
@@ -481,6 +508,8 @@ void Draw()
         agent_id_text.setPosition(agent.dino.position);
         window.draw(agent_id_text);
     }
+
+#endif
 
     window.draw(ground_rectangle);
     window.draw(distance_text);
